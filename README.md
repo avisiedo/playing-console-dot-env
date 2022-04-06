@@ -6,7 +6,7 @@
   in the root of this repository.
 
 - Execute the automation to get the environment local
-  ready (Fedora 35 so far).
+  ready (I have executed it on Fedora 34).
 
   ```sh
   ./scripts/setup-local.sh
@@ -100,4 +100,3 @@ Thoughts:
   Is it possible to get the same for TypeScript?
   I am not familiar with TypeScript further than an
   on-line basic course several years ago.
-
