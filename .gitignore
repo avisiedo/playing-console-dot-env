@@ -1,0 +1,15 @@
+# Ignore /external directory where we will
+# clone the projects to integrate into the
+# environment
+external/**
+!external/.keepme
+bin/**
+quay-io-pull-secret.yaml
+quay-io-pull-secret.yml
+.cache/**
+
+# ansible/vars/setup-local.yaml
+
+
+# Ignore the local python virtual environment
+.venv
