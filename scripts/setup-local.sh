@@ -203,8 +203,12 @@ APP=console-idm
 export APP
 (cd external; create-crc-app "$APP")
 
-# start the application with 'PROXY=yes'
-# PROXY=true npm run dev
+cat <<EOF
+Now go to external/${APP}
+# cd external/${APP}
+And run the frontend by:
+# PROXY=yes npm run dev
+EOF
 
 # Configure the proxy paths at: fec.config.js
 # Use the 'routesPath' attribute to externalize
