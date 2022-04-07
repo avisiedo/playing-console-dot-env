@@ -15,6 +15,8 @@ minikube_memory="16384"
 minikube_disk_size="36GB"
 minikube_vm_driver="kvm2"
 
+minikube_url="https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64"
+
 # https://github.com/RedHatInsights/clowder/releases/
 clouder_version="v0.30.0"
 
@@ -45,6 +47,8 @@ fi
 # PROCESS
 
 [ -e .cache ] || mkdir .cache
+[ -e bin ] || mkdir -p bin
+export PATH="$PWD/bin:$PATH"
 
 # Install git
 command -v git &>/dev/null || {
@@ -59,19 +63,22 @@ command -v virsh &>/dev/null || {
 
 
 # Install minikube
-echo "> Installing minikube"
-[ -e .cache/minikube-latest.x86_64.rpm ] \
-|| curl -sLo .cache/minikube-latest.x86_64.rpm https://storage.googleapis.com/minikube/releases/latest/minikube-latest.x86_64.rpm
-rpm -q minikube || sudo rpm -ivh .cache/minikube-latest.x86_64.rpm
+# https://minikube.sigs.k8s.io/docs/start/
+[ -e "bin/minikube" ] || {
+	echo "> Installing minikube"
+	[ -e "bin" ] || mkdir "bin"
+	curl -sLo "bin/minikube" "${minikube_url}"
+	chmod a+x "bin/minikube"
+}
 
 # Download kubectl
 # https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
-[ -e bin ] || mkdir -p bin
 
-[ -e bin/kubectl ] \
-|| curl -sLo bin/kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-chmod a+x bin/kubectl
-alias kubectl="$PWD/bin/kubectl"
+[ -e "bin/kubectl" ] || {
+	curl -sLo "bin/kubectl" "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+	chmod a+x "bin/kubectl"
+	alias kubectl="$PWD/bin/kubectl"
+}
 
 # Configure minikube
 minikube config set cpus "${minikube_cpus}"
@@ -141,8 +148,8 @@ bonfire deploy-env -n "${namespace}" -u "${quayio_user}"
 #      out of the current base directory.
 echo "> Downloading necessary repositories?"
 apps=()
-apps+=("insights-rbac")
-apps+=("landing-page-frontend")
+#apps+=("insights-rbac")
+#apps+=("landing-page-frontend")
 apps+=("frontend-components")
 for app in "${apps[@]}"; do
     [ -e "./external/${app}" ] \
@@ -204,3 +211,5 @@ export APP
 # At the end of this script, just include the config/prepare-env.sh
 # to set the environment before work with it
 source config/prepare-env.sh
+
+
