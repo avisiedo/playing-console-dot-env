@@ -198,10 +198,12 @@ command -v create-crc-app &>/dev/null || {
 
 
 # Create application
-echo "> Creating frontend application"
 APP=console-idm
 export APP
-(cd external; create-crc-app "$APP")
+[ -e "external/$APP" ] || {
+	echo "> Creating frontend application"
+	(cd external && create-crc-app "$APP")
+}
 
 cat <<EOF
 Now load the environment by:
