@@ -122,9 +122,14 @@ pip install -r requirements-dev.txt
 
 # Preparing node environment by using nvm
 # https://github.com/nvm-sh/nvm
-which nvm &>/dev/null \
-|| curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash
-source "$HOME/.bashrc"
+command -v nvm &>/dev/null || {
+	curl -sL https://raw.githubusercontent.com/creationix/nvm/master/install.sh | env -i HOME="$HOME" bash
+}
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
 # TODO Set version in a variable
 nvm install v17.8.0
 nvm use v17.8.0
@@ -208,8 +213,9 @@ export APP
 # https://github.com/RedHatInsights/frontend-components/tree/master/packages/config#useproxy
 
 
-# At the end of this script, just include the config/prepare-env.sh
-# to set the environment before work with it
-source config/prepare-env.sh
+# To use the environment setup by this script, just
+# include config/prepare-env.sh
+#
+# source config/prepare-env.sh
 
 
