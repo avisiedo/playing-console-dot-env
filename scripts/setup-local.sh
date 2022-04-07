@@ -204,6 +204,8 @@ export APP
 (cd external; create-crc-app "$APP")
 
 cat <<EOF
+Now load the environment by:
+# source config/prepare-env.sh
 Now go to external/${APP}
 # cd external/${APP}
 And run the frontend by:
