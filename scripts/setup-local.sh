@@ -198,6 +198,7 @@ command -v create-crc-app &>/dev/null || {
 
 
 # Create application
+echo "> Creating frontend application"
 APP=console-idm
 export APP
 (cd external; create-crc-app "$APP")
