@@ -95,6 +95,7 @@ minikube start \
   --vm-driver "${minikube_vm_driver}"
 # Enable internal image registry at port 5000 in the minikube vm
 minikube addons enable registry
+minikube addons enable ingress
 
 # Install clowder
 echo "> Install clowder"
@@ -221,10 +222,7 @@ EOF
 # More information about it at:
 # https://github.com/RedHatInsights/frontend-components/tree/master/packages/config#useproxy
 
-
 # To use the environment setup by this script, just
 # include config/prepare-env.sh
 #
 # source config/prepare-env.sh
-
-
