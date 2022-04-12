@@ -4,141 +4,196 @@
 # https://consoledot.pages.redhat.com/docs/dev/getting-started/local/environment.html
 set -e
 
+# VARIABLES
 # shellcheck disable=SC1091
 [ ! -e scripts/private.inc.sh ] || source "scripts/private.inc.sh"
+[ ! -e scripts/variables.inc.sh ] || source "scripts/variables.inc.sh"
 
-# VARIABLES
-repo_user="${repo_user:-${USER}}"
+function validation {
+  if [ "${quayio_user}" == "" ]; then
+      echo "ERROR:quayio_user can not be empty. Set variable quayio_user to the username at quayio"
+      exit 1
+  fi
 
-minikube_cpus="6"
-minikube_memory="16384"
-minikube_disk_size="36GB"
-minikube_vm_driver="kvm2"
-
-minikube_url="https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64"
-
-# https://github.com/RedHatInsights/clowder/releases/
-clouder_version="v0.30.0"
-
-# TODO Fill this or provide externally
-quayio_user="${quayio_user:-${USER}}"
-quayio_pull_secret_path="${quaio_pull_secret_path:-quay-io-pull-secret.yaml}"
-
-namespace="${namespace:-idm}"
-
-# INSIGHTS_CHROME="${PWD}/external/frontend-components/insights-chrome/build"
-
-# VALIDATION
-
-if [ "${quayio_user}" == "" ]; then
-    echo "ERROR:quayio_user can not be empty. Set variable quayio_user to the username at quayio"
+  if [ "${quayio_pull_secret_path}" == "" ] \
+    || [ ! -e "${quayio_pull_secret_path}" ]; then
+    echo "ERROR:quayio_pull_secret_path is empty or the path does not exist"
+    echo "ERROR:Set quayio_pull_secreto pointing out to yours; by default it try 'quayio-pull-secret.yaml'"
+    echo "INFO:Retrieve the information as indicated here:"
+    echo "INFO:https://consoledot.pages.redhat.com/docs/dev/getting-started/local/environment.html#_get_your_quay_pull_secret"
     exit 1
-fi
+  fi
+}
 
-if [ "${quayio_pull_secret_path}" == "" ] \
-   || [ ! -e "${quayio_pull_secret_path}" ]; then
-  echo "ERROR:quayio_pull_secret_path is empty or the path does not exist"
-  echo "ERROR:Set quayio_pull_secreto pointing out to yours; by default it try 'quayio-pull-secret.yaml'"
-  echo "INFO:Retrieve the information as indicated here:"
-  echo "INFO:https://consoledot.pages.redhat.com/docs/dev/getting-started/local/environment.html#_get_your_quay_pull_secret"
-  exit 1
-fi
+function create_dirs {
+  [ -e .cache ] || mkdir .cache
+  [ -e bin ] || mkdir -p bin
+}
+
+function install_git {
+  # Install git
+  command -v git &>/dev/null || {
+    echo "> Installing git"
+    sudo dnf install -y git
+  }  
+}
+
+function install_virsh {
+  command -v virsh &>/dev/null || {
+    echo "> Installing virtualization packages"
+    sudo dnf install -y @virtualization
+  }
+}
+
+
+function install_minikube {
+  # Install minikube
+  # https://minikube.sigs.k8s.io/docs/start/
+  [ -e "bin/minikube" ] || {
+    echo "> Installing minikube"
+    [ -e "bin" ] || mkdir "bin"
+    curl -sLo "bin/minikube" "${minikube_url}"
+    chmod a+x "bin/minikube"
+  }
+}
+
+
+function install_kubectl {
+  # Download kubectl
+  # https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
+
+  [ -e "bin/kubectl" ] || {
+    curl -sLo "bin/kubectl" "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod a+x "bin/kubectl"
+    alias kubectl="$PWD/bin/kubectl"
+  }
+}
+
+
+function configure_minikube {
+  # Configure minikube
+  minikube config set cpus "${minikube_cpus}"
+  minikube config set memory "${minikube_memory}"
+  minikube config set disk-size "${minikube_disk_size}"
+  minikube config set vm-driver "${minikube_vm_driver}"
+}
+
+function start_minikube {
+  # Start minikube
+  echo "> Starting minikube"
+  minikube start \
+    --cpus "${minikube_cpus}" \
+    --memory "${minikube_memory}" \
+    --disk-size "${minikube_disk_size}" \
+    --vm-driver "${minikube_vm_driver}"
+}
+
+function enable_minikube_addons {
+  # Enable internal image registry at port 5000 in the minikube vm
+  minikube addons enable registry
+  minikube addons enable ingress
+}
+
+function install_clowder {
+  # Install clowder
+  echo "> Install clowder"
+  curl -sLo .cache/kube_setup.sh https://raw.githubusercontent.com/RedHatInsights/clowder/master/build/kube_setup.sh
+  chmod +x .cache/kube_setup.sh
+  ./.cache/kube_setup.sh
+  # Check on this page if this is the last version:
+  # https://github.com/RedHatInsights/clowder/releases/
+  kubectl apply -f https://github.com/RedHatInsights/clowder/releases/download/${clouder_version}/clowder-manifest-${clouder_version}.yaml --validate=false
+}
+
+function create_and_setup_namespace {
+  # Create namespace and configure it
+  kubectl get namespace "${namespace}" \
+  || kubectl create namespace "${namespace}"
+  kubectl config set-context --current --namespace="${namespace}"
+  kubectl get "secrets/${quayio_user}-pull-secret" \
+  || kubectl create -f "${quayio_pull_secret_path}"
+}
+
+function install_python_dependencies {
+  # Install python dependencies
+  echo "> Preparing .venv python environment"
+  [ -e .venv ] || python -m venv .venv
+  # shellcheck disable=SC1091
+  source .venv/bin/activate
+  pip install --upgrade pip
+  pip install -r requirements-dev.txt
+}
+
+function setup_node_environment {
+  # Preparing node environment by using nvm
+  # https://github.com/nvm-sh/nvm
+  command -v nvm &>/dev/null || {
+    curl -sL https://raw.githubusercontent.com/creationix/nvm/master/install.sh | env -i HOME="$HOME" bash
+  }
+
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+  # TODO Set version in a variable
+  nvm install v17.8.0
+  nvm use v17.8.0
+
+  # Install yalc
+  command -v yalc &>/dev/null \
+  || npm install -g yalc
+
+  # Install create-crc-app
+  command -v create-crc-app &>/dev/null \
+  || npm install -g create-crc-app
+}
+
+function deploy_environment {
+  # Deploy a local environment
+  echo "> Deploying local environment with bonfire"
+  bonfire deploy-env -n "${namespace}" -u "${quayio_user}" -c "config/bonfire-local.yaml"
+}
+
+function download_external_repos {
+  echo "> Downloading necessary repositories?"
+  apps=()
+  #apps+=("insights-rbac")
+  #apps+=("landing-page-frontend")
+  apps+=("frontend-components")
+  apps+=("chrome")
+  for app in "${apps[@]}"; do
+      [ -e "./external/${app}" ] \
+      || git clone -o downstream "https://github.com/RedHatInsights/${app}.git" "external/${app}"
+  done
+}
+
+function install_podman {
+  # Install podman if not yet
+  command -v podman &>/dev/null \
+  || sudo dnf install -y podman
+}
 
 # PROCESS
 
-[ -e .cache ] || mkdir .cache
-[ -e bin ] || mkdir -p bin
+validation
+create_dirs
 export PATH="$PWD/bin:$PATH"
+install_git
+install_virsh
+install_minikube
+install_kubectl
+install_podman
+configure_minikube
+start_minikube
+enable_minikube_addons
+install_clowder
+create_and_setup_namespace
+install_python_dependencies
+setup_node_environment
+deploy_environment
 
-# Install git
-command -v git &>/dev/null || {
-	echo "> Installing git"
-	sudo dnf install -y git
-}
+download_external_repos
 
-command -v virsh &>/dev/null || {
-	echo "> Installing virtualization packages"
-	sudo dnf install -y @virtualization
-}
-
-
-# Install minikube
-# https://minikube.sigs.k8s.io/docs/start/
-[ -e "bin/minikube" ] || {
-	echo "> Installing minikube"
-	[ -e "bin" ] || mkdir "bin"
-	curl -sLo "bin/minikube" "${minikube_url}"
-	chmod a+x "bin/minikube"
-}
-
-# Download kubectl
-# https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
-
-[ -e "bin/kubectl" ] || {
-	curl -sLo "bin/kubectl" "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-	chmod a+x "bin/kubectl"
-	alias kubectl="$PWD/bin/kubectl"
-}
-
-# Configure minikube
-minikube config set cpus "${minikube_cpus}"
-minikube config set memory "${minikube_memory}"
-minikube config set disk-size "${minikube_disk_size}"
-minikube config set vm-driver "${minikube_vm_driver}"
-
-# Start minikube
-echo "> Starting minikube"
-minikube start \
-  --cpus "${minikube_cpus}" \
-  --memory "${minikube_memory}" \
-  --disk-size "${minikube_disk_size}" \
-  --vm-driver "${minikube_vm_driver}"
-# Enable internal image registry at port 5000 in the minikube vm
-minikube addons enable registry
-minikube addons enable ingress
-
-# Install clowder
-echo "> Install clowder"
-curl -sLo .cache/kube_setup.sh https://raw.githubusercontent.com/RedHatInsights/clowder/master/build/kube_setup.sh
-chmod +x .cache/kube_setup.sh
-./.cache/kube_setup.sh
-# Check on this page if this is the last version:
-# https://github.com/RedHatInsights/clowder/releases/
-kubectl apply -f https://github.com/RedHatInsights/clowder/releases/download/${clouder_version}/clowder-manifest-${clouder_version}.yaml --validate=false
-
-# Create namespace and configure it
-kubectl get namespace "${namespace}" \
-|| kubectl create namespace "${namespace}"
-kubectl config set-context --current --namespace="${namespace}"
-kubectl get "secrets/${quayio_user}-pull-secret" \
-|| kubectl create -f "${quayio_pull_secret_path}"
-
-# Install python dependencies
-echo "> Preparing .venv python environment"
-[ -e .venv ] || python -m venv .venv
-# shellcheck disable=SC1091
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements-dev.txt
-
-# Preparing node environment by using nvm
-# https://github.com/nvm-sh/nvm
-command -v nvm &>/dev/null || {
-	curl -sL https://raw.githubusercontent.com/creationix/nvm/master/install.sh | env -i HOME="$HOME" bash
-}
-
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-
-# TODO Set version in a variable
-nvm install v17.8.0
-nvm use v17.8.0
-npm install -g yalc
-
-# Deploy an ephemeral cloud environment
-echo "> Deploying ephemeral cloud environment"
-bonfire deploy-env -n "${namespace}" -u "${quayio_user}"
 
 # Install an application by:
 # bonfire deploy --source=appsre rbac -n test
@@ -152,19 +207,9 @@ bonfire deploy-env -n "${namespace}" -u "${quayio_user}"
 # INFO I do not know yet how to specify a specific configuration file
 # INFO I would like to have a self-contained environment, no other configuration file
 #      out of the current base directory.
-echo "> Downloading necessary repositories?"
-apps=()
-#apps+=("insights-rbac")
-#apps+=("landing-page-frontend")
-apps+=("frontend-components")
-for app in "${apps[@]}"; do
-    [ -e "./external/${app}" ] \
-    || git clone -o downstream "https://github.com/RedHatInsights/${app}.git" "external/${app}"
-done
 
-# Install podman if not yet
-command -v podman &>/dev/null \
-|| sudo dnf install -y podman
+
+
 
 # https://consoledot.pages.redhat.com/docs/dev/getting-started/local/development.html#_a_combined_local_build_sh
 echo "> Use similar template for each repo to develop"
@@ -191,11 +236,6 @@ EOF
 
 # Creating minimal frontend
 # See repo: https://github.com/RedHatInsights/frontend-starter-app
-
-# Install create-crc-app
-command -v create-crc-app &>/dev/null || {
-	npm install -g create-crc-app
-}
 
 
 # Create application
@@ -226,3 +266,5 @@ EOF
 # include config/prepare-env.sh
 #
 # source config/prepare-env.sh
+
+# bonfire deploy --local-config-path config/bonfire-config-local.yaml
