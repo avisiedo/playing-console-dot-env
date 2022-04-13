@@ -35,7 +35,7 @@ function install_git {
   command -v git &>/dev/null || {
     echo "> Installing git"
     sudo dnf install -y git
-  }  
+  }
 }
 
 function install_virsh {
@@ -107,10 +107,10 @@ function install_clowder {
 
 function create_and_setup_namespace {
   # Create namespace and configure it
-  kubectl get namespace "${namespace}" \
+  kubectl get namespace "${namespace}" &>/dev/null \
   || kubectl create namespace "${namespace}"
   kubectl config set-context --current --namespace="${namespace}"
-  kubectl get "secrets/${quayio_user}-pull-secret" \
+  kubectl get "secrets/${quayio_user}-pull-secret" &>/dev/null \
   || kubectl create -f "${quayio_pull_secret_path}"
 }
 
@@ -151,19 +151,29 @@ function setup_node_environment {
 function deploy_environment {
   # Deploy a local environment
   echo "> Deploying local environment with bonfire"
-  bonfire deploy-env -n "${namespace}" -u "${quayio_user}" -c "config/bonfire-local.yaml"
+  bonfire deploy-env -n "${namespace}" -u "${quayio_user}"
+  # bonfire deploy \
+  #   --namespace "${namespace}"
+  #   --source appsre \
+  #   --local-config-path "config/bonfire-config-local.yaml" \
+  #   --clowd-env "env-${namespace}"
 }
 
 function download_external_repos {
   echo "> Downloading necessary repositories?"
-  apps=()
-  #apps+=("insights-rbac")
-  #apps+=("landing-page-frontend")
-  apps+=("frontend-components")
-  apps+=("chrome")
-  for app in "${apps[@]}"; do
-      [ -e "./external/${app}" ] \
-      || git clone -o downstream "https://github.com/RedHatInsights/${app}.git" "external/${app}"
+
+  repos=()
+  repos+=("https://github.com/RedHatInsights/frontend-components.git")
+  repos+=("https://github.com/RedHatInsights/insights-chrome.git")
+  repos+=("https://github.com/RedHatInsights/insights-host-inventory.git")
+  repos+=("https://github.com/app-sre/qontract-server.git")
+  repos+=("https://github.com/RedHatInsights/cloud-services-config.git")
+
+  for repo in "${repos[@]}"; do
+    directory="${repo##*/}"
+    directory="${directory%.git}"
+    [ -e "./external/${directory}" ] \
+    || git clone -o downstream "${repo}" "external/${repo}"
   done
 }
 
@@ -239,17 +249,18 @@ EOF
 
 
 # Create application
-APP=console-idm
+APP=insights-idm
 export APP
 [ -e "external/$APP" ] || {
 	echo "> Creating frontend application"
-	(cd external && create-crc-app "$APP")
+  # FIXME 'npm install --save webpack-bundle-analyzer' is needed to do 'npm run build' and './node_modules/.bin/fec static'
+	(cd external && create-crc-app "${APP}-frontend" && cd "${APP}-frontend" && npm install --save webpack-bundle-analyzer)
 }
 
 cat <<EOF
 Now load the environment by:
 # source config/prepare-env.sh
-Now go to external/${APP}
+Now go to external/${APP}-frontend
 # cd external/${APP}
 And run the frontend by:
 # PROXY=yes npm run dev
