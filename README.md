@@ -30,7 +30,8 @@ Running the below:
 
 ```sh
 cd external
-crc-app-start my-app
+crc-app-start insights-idm
+cd insights-idm
 ```
 
 Generate the below tree:
@@ -75,7 +76,6 @@ Generate the below tree:
 Now just do:
 
 ```sh
-cd my-app
 npm install
 npm patch:hosts
 ```
