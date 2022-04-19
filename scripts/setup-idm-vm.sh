@@ -34,10 +34,6 @@ function idm_vm_download_iso {
     [ -e "${output}" ] || curl -sLo "${output}" "${fedora_qcow2_url}"
 }
 
-# function idm_vm_network_bridge_setup {
-#     msg_info "Setting up bridge '${bridge_name}'"
-#     brctl show "${bridge_name}" &>/dev/null || sudo brctl addbr "${bridge_name}"
-# }
 
 function idm_vm_network_setup {
     local network_path=".cache/virsh-network-${network_name}.xml"
@@ -65,7 +61,7 @@ function idm_vm_network_setup {
 EOF
     sudo virsh net-info "${network_name}" &>/dev/null \
     || sudo virsh net-define "${network_path}"
-    sudo virsh net-info idmconsole | grep "Active:" | grep -q yes \
+    sudo virsh net-info "${network_name}" | grep "Active:" | grep -q yes \
     || {
         sudo virsh net-start "${network_name}"
         sudo virsh net-autostart "${network_name}"
@@ -121,6 +117,8 @@ package_upgrade: true
 runcmd:
   - growpart /dev/vda 1
   - resize2fs -p /dev/vda1
+  - dnf -y module enable idm:DL1
+  - dnf -y module install idm:DL1/dns
   - /usr/sbin/ipa-server-install \
       --unattended \
       --realm="${service_ipa_domain^^}" \
