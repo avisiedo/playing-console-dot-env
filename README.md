@@ -26,15 +26,10 @@
 
 see: https://github.com/RedHatInsights/frontend-components/blob/master/packages/docs/pages/ui-onboarding/create-crc-app.md
 
+It is executed by the `scripts/setup-local.sh` script:
 Running the below:
 
-```sh
-cd external
-crc-app-start insights-idm
-cd insights-idm
-```
-
-Generate the below tree:
+You will find the below at the `external/insights-idm-frontend` directory:
 
 ```raw
 # tree -I 'node_modules|cache|test_*|dist'
