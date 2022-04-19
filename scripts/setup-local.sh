@@ -42,7 +42,18 @@ function install_virsh {
   command -v virsh &>/dev/null || {
     echo "> Installing virtualization packages"
     sudo dnf install -y @virtualization
+    sudo usermod -a -G libvirt $(whoami)
+    newgrp libvirt
   }
+}
+
+
+function install_aws_cli {
+  [ -e .cache ] || mkdir .cache
+  [ -e .cache/awscliv2.zip ] || curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o ".cache/awscliv2.zip"
+  [ -e .cache/aws ] || unzip ".cache/awscliv2.zip" -d ".cache"
+  [ -e ".cache/aws-cli" ] || ".cache/aws/install" --install-dir "${PWD}/.cache/aws-cli" -b "${PWD}/bin"
+  [ ! -e ".cache/aws" ] || rm -rf ".cache/aws"
 }
 
 
@@ -168,12 +179,22 @@ function download_external_repos {
   repos+=("https://github.com/RedHatInsights/insights-host-inventory.git")
   repos+=("https://github.com/app-sre/qontract-server.git")
   repos+=("https://github.com/RedHatInsights/cloud-services-config.git")
+  repos+=("https://github.com/RedHatInsights/image-builder-frontend.git")
+  repos+=("https://github.com/RedHatInsights/image-builder-frontend.git")
+  repos+=("https://github.com/RedHatInsights/insights-remediations-frontend.git")
+  repos+=("https://github.com/RedHatInsights/insights-remediations.git")
+  repos+=("https://github.com/RedHatInsights/remediations-consumer.git")
+  repos+=("https://github.com/RedHatInsights/rbac-config.git")
+  repos+=("https://gitlab.cee.redhat.com/service/app-interface.git")
 
   for repo in "${repos[@]}"; do
     directory="${repo##*/}"
     directory="${directory%.git}"
-    [ -e "./external/${directory}" ] \
-    || git clone -o downstream "${repo}" "external/${repo}"
+    directory="external/${directory}"
+    [ -e "${directory}" ] || {
+      echo "> Cloning '${repo}' to '${directory}'"
+      git clone -o downstream "${repo}" "${directory}"
+    }
   done
 }
 
@@ -183,6 +204,31 @@ function install_podman {
   || sudo dnf install -y podman
 }
 
+# https://consoledot.pages.redhat.com/docs/dev/getting-started/local/development.html#_a_combined_local_build_sh
+function generate_local_build {
+  cat <<EOF
+DEFAULT_APP=\$(dirname "\${PWD}")
+DEFAULT_APP="${APP##*/}"
+APP="\${\$1:-\${DEFAULT_APP}}"
+
+VERSION="\${VERSION:-"0.0.0"}"
+VERSION="${VERSION}-$(git rev-list --count HEAD)"
+
+if [ -z "\${APP}" ]; then
+  echo "usage ./local_build.sh <app>\n"
+  echo "It looks like you may be missing the app arg.\n"
+fi
+
+TAG=\$( cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 7 | head -n 1 )
+IMAGE="127.0.0.1:5000/\${APP}"
+
+podman build -t \$IMAGE:\$TAG -f Dockerfile
+
+podman push \$IMAGE:\$TAG \$(minikube ip):5000/\${APP}:\${TAG} --tls-verify=false
+echo \$TAG
+EOF
+}
+
 # PROCESS
 
 validation
@@ -190,6 +236,7 @@ create_dirs
 export PATH="$PWD/bin:$PATH"
 install_git
 install_virsh
+install_aws_cli
 install_minikube
 install_kubectl
 install_podman
@@ -221,25 +268,6 @@ download_external_repos
 
 
 
-# https://consoledot.pages.redhat.com/docs/dev/getting-started/local/development.html#_a_combined_local_build_sh
-echo "> Use similar template for each repo to develop"
-cat <<EOF
-APP=\$1
-
-if [ -z "\$APP" ]; then
-  echo "usage ./local_build.sh <app>\n"
-  echo "It looks like you may be missing the app arg.\n"
-fi
-
-TAG=\$( cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 7 | head -n 1 )
-IMAGE="127.0.0.1:5000/\$APP"
-
-podman build -t \$IMAGE:\$TAG -f Dockerfile
-
-podman push \$IMAGE:\$TAG \$(minikube ip):5000/\$APP:\$TAG --tls-verify=false
-echo \$TAG
-EOF
-
 # About bonfire
 # https://github.com/RedHatInsights/bonfire/blob/master/README.md
 
@@ -251,17 +279,19 @@ EOF
 # Create application
 APP=insights-idm
 export APP
-[ -e "external/$APP" ] || {
-	echo "> Creating frontend application"
+[ -e "external/${APP}-frontend" ] || {
+	echo "> Creating frontend application at 'external/${APP}'"
   # FIXME 'npm install --save webpack-bundle-analyzer' is needed to do 'npm run build' and './node_modules/.bin/fec static'
 	(cd external && create-crc-app "${APP}-frontend" && cd "${APP}-frontend" && npm install --save webpack-bundle-analyzer)
+  generate_local_build > "external/${APP}-frontend/local_build.sh"
+  chmod a+x "external/${APP}-frontend/local_build.sh"
 }
 
 cat <<EOF
 Now load the environment by:
 # source config/prepare-env.sh
 Now go to external/${APP}-frontend
-# cd external/${APP}
+# cd external/${APP}-frontend
 And run the frontend by:
 # PROXY=yes npm run dev
 EOF
@@ -273,9 +303,7 @@ EOF
 # More information about it at:
 # https://github.com/RedHatInsights/frontend-components/tree/master/packages/config#useproxy
 
-# To use the environment setup by this script, just
-# include config/prepare-env.sh
-#
+# To use the environment setup by this script, just do:
 # source config/prepare-env.sh
 
 # bonfire deploy --local-config-path config/bonfire-config-local.yaml
