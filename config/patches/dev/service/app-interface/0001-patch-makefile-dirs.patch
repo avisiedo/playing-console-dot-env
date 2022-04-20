@@ -1,0 +1,32 @@
+diff --git a/Makefile b/Makefile
+index b59403a9fe..afcca41a32 100644
+--- a/Makefile
++++ b/Makefile
+@@ -11,6 +11,14 @@ PWD := $(shell pwd)
+ GIT_COMMIT := $(shell git rev-parse HEAD)
+ GIT_COMMIT_TIMESTAMP := $(shell git log -1 --format=%ct $(GIT_COMMIT))
+ 
++# SCHEMAS_DIR should point out to 'schemas' directory at:
++# https://github.com/app-sre/qontract-schemas.git
++SCHEMAS_DIR ?= $(realpath schemas)
++
++# GRAPHQL_SCHEMAS_DIR should point out to 'graphql-schemas' directory at:
++# https://github.com/app-sre/qontract-schemas.git
++GRAPHQL_SCHEMAS_DIR ?= $(realpath graphql-schemas)
++
+ schemas:
+ 	@rm -rf schemas graphql-schemas
+ 	$(eval ID := $(shell $(CONTAINER_ENGINE) create $(SCHEMAS_IMAGE):$(SCHEMAS_IMAGE_TAG)))
+@@ -20,9 +28,9 @@ schemas:
+ bundle:
+ 	mkdir -p $(OUTPUT_DIR)
+ 	# cp --parents docs/**/*.md resources
+-	@$(CONTAINER_ENGINE) run --rm \
+-		-v $(PWD)/schemas:/schemas:z \
+-		-v $(PWD)/graphql-schemas:/graphql:z \
++	$(CONTAINER_ENGINE) run --rm \
++		-v $(SCHEMAS_DIR):/schemas:z \
++		-v $(GRAPHQL_SCHEMAS_DIR):/graphql:z \
+ 		-v $(PWD)/$(DATA_DIR):/data:z \
+ 		-v $(PWD)/resources:/resources:z \
+ 		$(VALIDATOR_IMAGE):$(VALIDATOR_IMAGE_TAG) \

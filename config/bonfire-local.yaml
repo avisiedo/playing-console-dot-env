@@ -1,0 +1,41 @@
+# Bonfire deployment configuration
+# https://github.com/RedHatInsights/bonfire#app-config-overrides
+
+# Defines where to fetch the file that defines application configs
+# https://gitlab.cee.redhat.com/insights-platform/cicd-common
+# https://gitlab.cee.redhat.com/insights-platform/cicd-common/-/blob/master/bonfire_configs/ephemeral_apps.yaml
+appsFile:
+  host: gitlab
+  repo: insights-platform/cicd-common
+  path: bonfire_configs/ephemeral_apps.yaml
+
+# (optional) define any apps locally. An app defined here with <name> will override config for app
+# <name> in above fetched config.
+apps:
+- name: insights-idm
+  components:
+    - name: insights-idm
+      # host: github
+      host: local
+      repo: ./external/insights-idm
+      path: /deploy/deploy.yaml
+
+    # - name: rbac
+    #   # host: github
+    #   # repo: RedHatInsights/insights-rbac
+    #   host: local
+    #   repo: ./external/insights-rbac
+    #   path: /deploy/rbac-clowdapp.yml
+    #   parameters:
+    #     HABERDASHER_LABELS: {"app": "rbac"}
+    #     HABERDASHER_TAGS: ["rbac"]
+    #     DISABLE_MIGRATE: "False"
+    #     EPH_ENV: "True"
+    #     CLOWDER_ENABLED: "true"
+    #     PERMISSION_SEEDING_ENABLED: 'True'
+    #     ROLE_SEEDING_ENABLED: 'True'
+    #     GROUP_SEEDING_ENABLED: 'True'
+    #     CELERY_INITIAL_DELAY_SEC: 120
+    #     CELERY_PERIOD_SEC: 10
+    #     MIN_SCHEDULER_REPLICAS: 0
+    #     MIN_WORKER_REPLICAS: 0
