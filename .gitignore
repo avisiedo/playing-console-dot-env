@@ -3,11 +3,12 @@
 # environment
 external/**
 !external/.keepme
+!external/README.md
 bin/**
 quay-io-pull-secret.yaml
 quay-io-pull-secret.yml
 .cache/**
-!secrets/**
+secrets/**
 
 # ansible/vars/setup-local.yaml
 
